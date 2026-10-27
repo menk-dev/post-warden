@@ -15,7 +15,7 @@ jobs:
       pull-requests: write
     steps:
       # Metadata only: never check out or run code from the PR.
-      - uses: dependabot/fetch-metadata@v2
+      - uses: dependabot/fetch-metadata@v3
         id: metadata
         with:
           github-token: ${{ github.token }}

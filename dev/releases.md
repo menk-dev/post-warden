@@ -4,7 +4,8 @@ Release Please prepares version and changelog PRs from Conventional Commits.
 Merging a release PR creates a version tag and GitHub Release. The same workflow
 then rebuilds, tests, validates and publishes NuGet packages with OIDC when enabled.
 `version.txt` is the single package-version source; the simple release strategy
-updates it automatically. The manifest starts at 0.0.0 for the first 0.1.0 release.
+updates it automatically. The manifest starts at 0.0.0; `initial-version` explicitly
+selects 0.1.0 for the first release instead of Release Please's default 1.0.0.
 No package is published just by initializing this repository.
 
 ## One-time account configuration

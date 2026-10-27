@@ -1,0 +1,89 @@
+name: Release
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to retry (for example v0.1.0)
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: release
+  cancel-in-progress: false
+jobs:
+  prepare:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    outputs:
+      released: ${{ steps.release.outputs.release_created }}
+      tag: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - uses: googleapis/release-please-action@v5
+        id: release
+      # GITHUB_TOKEN-created PRs do not trigger pull_request workflows.
+      - name: Dispatch CI for the release PR
+        if: steps.release.outputs.pr != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_PR: ${{ steps.release.outputs.pr }}
+        run: |
+          number=$(jq -r '.number' <<< "$RELEASE_PR")
+          branch=$(gh pr view "$number" --json headRefName --jq .headRefName)
+          gh workflow run ci.yml --ref "$branch"
+  publish:
+    needs: prepare
+    if: >-
+      always() && vars.NUGET_PUBLISH_ENABLED == 'true' &&
+      (needs.prepare.outputs.released == 'true' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: nuget
+    permissions:
+      contents: write
+      id-token: write
+    env:
+      RELEASE_TAG: ${{ inputs.tag || needs.prepare.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+          fetch-depth: 0
+      - name: Verify tag and package version
+        run: |
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          git show-ref --verify "refs/tags/$RELEASE_TAG"
+          git merge-base --is-ancestor "$RELEASE_TAG" origin/main
+          test "$RELEASE_TAG" = "v$(cat version.txt)"
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.x'
+      - run: dotnet restore PostWarden.slnx --locked-mode
+      - run: dotnet format PostWarden.slnx --verify-no-changes --no-restore
+      - run: dotnet build PostWarden.slnx -c Release --no-restore
+      - run: dotnet test --solution PostWarden.slnx -c Release --no-build --ignore-exit-code 8
+      - run: dotnet pack PostWarden.slnx -c Release --no-build -o artifacts/packages
+      - run: python tools/validate_packages.py artifacts/packages
+      - name: Attach validated packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$RELEASE_TAG" artifacts/packages/* --clobber
+      - uses: NuGet/login@v1
+        id: nuget
+        with:
+          user: menk-dev
+      - name: Publish to nuget.org
+        env:
+          NUGET_API_KEY: ${{ steps.nuget.outputs.NUGET_API_KEY }}
+        run: dotnet nuget push artifacts/packages/*.nupkg --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate

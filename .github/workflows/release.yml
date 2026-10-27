@@ -26,7 +26,7 @@ jobs:
       released: ${{ steps.release.outputs.release_created }}
       tag: ${{ steps.release.outputs.tag_name }}
     steps:
-      - uses: googleapis/release-please-action@v4
+      - uses: googleapis/release-please-action@v5
         id: release
       # GITHUB_TOKEN-created PRs do not trigger pull_request workflows.
       - name: Dispatch CI for the release PR

@@ -1,0 +1,41 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+      - run: dotnet restore PostWarden.slnx --locked-mode
+      - run: dotnet format PostWarden.slnx --verify-no-changes --no-restore
+      - run: dotnet build PostWarden.slnx -c Release --no-restore
+      # Remove the no-tests exception when the first behavior tests are added.
+      - run: dotnet test --solution PostWarden.slnx -c Release --no-build --ignore-exit-code 8
+      - run: dotnet pack PostWarden.slnx -c Release --no-build -o artifacts/packages
+      - run: python tools/validate_packages.py artifacts/packages
+      - uses: actions/upload-artifact@v7
+        with:
+          name: packages-${{ matrix.os }}
+          path: artifacts/packages/*
+          if-no-files-found: error

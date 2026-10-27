@@ -1,0 +1,16 @@
+**/bin/
+**/obj/
+artifacts/
+TestResults/
+**/*.trx
+.vs/
+.idea/
+*.user
+*.suo
+.DS_Store
+.env
+.env.*
+!.env.example
+.agents/
+.codex/
+.aws/

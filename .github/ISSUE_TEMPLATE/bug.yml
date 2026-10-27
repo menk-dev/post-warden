@@ -1,0 +1,16 @@
+name: Bug report
+description: Report incorrect behavior
+body:
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Include the package version, .NET version, broker version, and a minimal reproduction. Remove credentials and message contents.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
